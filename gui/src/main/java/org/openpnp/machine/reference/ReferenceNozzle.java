@@ -49,7 +49,6 @@ public class ReferenceNozzle extends AbstractNozzle implements
     }
 
     public void setPickDwellMilliseconds(int pickDwellMilliseconds) {
-		logger.debug("{}.setPickDwellMilliseconds({})", getId(), pickDwellMilliseconds);
 		this.pickDwellMilliseconds = pickDwellMilliseconds;
     }
 
@@ -58,7 +57,6 @@ public class ReferenceNozzle extends AbstractNozzle implements
     }
 
     public void setPlaceDwellMilliseconds(int placeDwellMilliseconds) {
-		logger.debug("{}.setPlaceDwellMilliseconds({})", getId(), placeDwellMilliseconds);
 		this.placeDwellMilliseconds = placeDwellMilliseconds;
     }
 
@@ -69,7 +67,6 @@ public class ReferenceNozzle extends AbstractNozzle implements
 
     @Override
     public NozzleTip getNozzleTip() {
-		logger.debug("{}.getNozzleTip => {}", getId(), nozzleTip);
 		return nozzleTip;
     }
 
@@ -114,9 +111,7 @@ public class ReferenceNozzle extends AbstractNozzle implements
 
     @Override
     public Location getLocation() {
-		Location result = driver.getLocation(this);
-		logger.trace("{}.getLocation => {}", getId(), result);
-		return result;
+		return driver.getLocation(this);
 	}
 
     @Override
@@ -128,11 +123,6 @@ public class ReferenceNozzle extends AbstractNozzle implements
 	@Override
 	public String toString() {
 		return getId();
-	}
-
-	public void setHead(Head head) {
-		logger.debug("{}.setHead({})", getId(), head);
-		super.setHead(head);
 	}
 
 }
