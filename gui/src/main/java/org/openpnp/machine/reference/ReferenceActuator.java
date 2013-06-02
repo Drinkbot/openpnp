@@ -57,7 +57,6 @@ public class ReferenceActuator extends AbstractActuator implements ReferenceHead
     }
     
     public void setHeadOffsets(Location headOffsets) {
-		logger.debug("{}.setHeadOffsets({})", new Object[] { getId(), headOffsets } );
 		this.headOffsets = headOffsets;
     }
     
@@ -78,9 +77,7 @@ public class ReferenceActuator extends AbstractActuator implements ReferenceHead
 	
 	@Override
     public Location getLocation() {
-		Location result = driver.getLocation(this);
-		logger.trace("{}.getLocation => {}", result);
-	    return result;
+		return driver.getLocation(this);
     }
 
     @Override
