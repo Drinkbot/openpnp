@@ -106,22 +106,18 @@ public class ReferenceTrayFeeder extends ReferenceFeeder {
 	}
 
 	public int getTrayCountX() {
-		logger.debug("{}.getTrayCountX => {}", getId(), trayCountX);
 		return trayCountX;
 	}
 
 	public void setTrayCountX(int trayCountX) {
-		logger.debug("{}.setTrayCountX({})", getId(), trayCountX);
 		this.trayCountX = trayCountX;
 	}
 
 	public int getTrayCountY() {
-		logger.debug("{}.getTrayCountY => {}", getId(), trayCountY);
 		return trayCountY;
 	}
 
 	public void setTrayCountY(int trayCountY) {
-		logger.debug("{}.setTrayCountY({})", getId(), trayCountY);
 		this.trayCountY = trayCountY;
 	}
 
@@ -130,43 +126,15 @@ public class ReferenceTrayFeeder extends ReferenceFeeder {
 	}
 
 	public void setOffsets(Location offsets) {
-		logger.debug("{}.setOffsets({})", getId(), offsets);
 		this.offsets = offsets;
 	}
 
 	public int getFeedCount() {
-		logger.debug("{}.getFeedCount => {}", getId(), feedCount);
 		return feedCount;
 	}
 
 	public void setFeedCount(int feedCount) {
-		logger.debug("{}.setFeedCount({})", getId(), feedCount);
 		this.feedCount = feedCount;
-	}
-
-	@Override
-	public Location getLocation() {
-		Location result = super.getLocation();
-		logger.debug("{}.getLocation => {}", getId(), result);
-		return result;
-	}
-
-	@Override
-	public void setLocation(Location location) {
-		logger.debug("{}.setLocation({})", getId(), location);
-		super.setLocation(location);
-	}
-
-	@Override
-	public void setEnabled(boolean enabled) {
-		logger.debug("{}.setEnabled({})", getId(), enabled);
-		super.setEnabled(enabled);
-	}
-
-	@Override
-	public void setPart(Part part) {
-		logger.debug("{}.setPart({})", getId(), part);
-		super.setPart(part);
 	}
 
 	@Override

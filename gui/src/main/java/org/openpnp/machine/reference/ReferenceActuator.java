@@ -35,13 +35,13 @@ import org.slf4j.LoggerFactory;
 public class ReferenceActuator extends AbstractActuator implements ReferenceHeadMountable {
     private final static Logger logger = LoggerFactory
             .getLogger(ReferenceActuator.class);
-    
+
     @Element
     private Location headOffsets;
-    
-	@Attribute
-	private int index;
-	
+
+    @Attribute
+    private int index;
+
     private ReferenceMachine machine;
     private ReferenceDriver driver;
 
@@ -55,48 +55,48 @@ public class ReferenceActuator extends AbstractActuator implements ReferenceHead
             }
         });
     }
-    
+
     public void setHeadOffsets(Location headOffsets) {
-		this.headOffsets = headOffsets;
+        this.headOffsets = headOffsets;
     }
-    
+
     public Location getHeadOffsets() {
         return headOffsets;
     }
 
-	public int getIndex() {
-		return index;
-	}
+    public int getIndex() {
+        return index;
+    }
 
-	@Override
-	public void actuate(boolean on) throws Exception {
-		logger.debug("{}.actuate({})", new Object[] { getId(), on } );
-		driver.actuate(this, on);
-		machine.fireMachineHeadActivity(head);
-	}
-	
-	@Override
+    @Override
+    public void actuate(boolean on) throws Exception {
+        logger.debug("{}.actuate({})", new Object[]{getId(), on});
+        driver.actuate(this, on);
+        machine.fireMachineHeadActivity(head);
+    }
+
+    @Override
     public Location getLocation() {
-		return driver.getLocation(this);
+        return driver.getLocation(this);
     }
 
     @Override
     public void actuate(double value) throws Exception {
-		logger.debug("{}.actuate({})", new Object[] { getId(), value } );
-		driver.actuate(this, value);
+        logger.debug("{}.actuate({})", new Object[]{getId(), value});
+        driver.actuate(this, value);
         machine.fireMachineHeadActivity(head);
     }
 
     @Override
     public void moveTo(Location location, double speed) throws Exception {
-		logger.debug("{}.moveTo({}, {})", new Object[] { getId(), location, speed } );
-		driver.moveTo(this, location, speed);
+        logger.debug("{}.moveTo({}, {})", new Object[]{getId(), location, speed});
+        driver.moveTo(this, location, speed);
         machine.fireMachineHeadActivity(head);
     }
 
     @Override
     public void moveToSafeZ(double speed) throws Exception {
-        logger.debug("{}.moveToSafeZ({})", new Object[] { getId(), speed } );
+        logger.debug("{}.moveToSafeZ({})", new Object[]{getId(), speed});
         Location l = new Location(getLocation().getUnits(), Double.NaN,
                 Double.NaN, 0, Double.NaN);
         driver.moveTo(this, l, speed);
@@ -104,12 +104,12 @@ public class ReferenceActuator extends AbstractActuator implements ReferenceHead
     }
 
     @Override
-	public Wizard getConfigurationWizard() {
-		return new ReferenceActuatorConfigurationWizard(this);
-	}
+    public Wizard getConfigurationWizard() {
+        return new ReferenceActuatorConfigurationWizard(this);
+    }
 
-	@Override
-	public String toString() {
-		return getId();
-	}
+    @Override
+    public String toString() {
+        return getId();
+    }
 }
