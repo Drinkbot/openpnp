@@ -398,17 +398,17 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
     File[] files = null;
     // Attempt to get the list of files from the source.
     try {
-      files = loadSourceFiles(); 
+      files = loadSourceFiles();
     }
     catch (Exception e) {
       logger.warn("Unable to load file list from {}", sourceUri);
       logger.warn("Reason", e);
     }
-    
+
     if (files == null) {
       files = loadCachedFiles();
     }
-    
+
     if (files.length == 0) {
       throw new Exception("No source or cached files found.");
     }
@@ -434,12 +434,9 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
     // Parse the filenames of the all the files and add their coordinates
     // to the sets and map.
     for (File file : files) {
-      String filename = file.getName();
-      filename = filename.substring(0, filename.indexOf(".png"));
-      String[] xy = filename.split(",");
-      double x = Double.parseDouble(xy[0]);
-      double y = Double.parseDouble(xy[1]);
-      Tile tile = new Tile(x, y, file);
+      double x = 0;
+      double y = 0;
+      Tile tile = new Tile(0, 0, file);
       uniqueX.add(x);
       uniqueY.add(y);
       tileMap.put(tile, tile);
@@ -480,25 +477,12 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
   
   private File[] loadSourceFiles() throws Exception {
     // Load the list of the files from the website
-    URL filesUrl = new URL(sourceUrl, "files.txt");
-    BufferedReader reader = new BufferedReader(new InputStreamReader(filesUrl.openStream()));
     ArrayList<File> files = new ArrayList<File>();
-    String line;
-    while ((line = reader.readLine()) != null) {
-      line = line.trim();
-      if (line.length() == 0) {
-        continue;
-      }
-      File file = new File(cacheDirectory, line);
-      files.add(file);
-    }
-    if (files.size() == 0) {
-      throw new Exception("No files found.");
-    }
-    logger.debug("Loaded {} filenames from {}", files.size(), sourceUri);
+    File file = new File(cacheDirectory, "asdf.png");
+    files.add(file);
     return files.toArray(new File[] {});
   }
-  
+
   private File[] loadCachedFiles() throws Exception {
     // Load all png files from the directory that look like they match what
     // we are expecting.
@@ -508,10 +492,10 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
         return arg1.contains(".") && arg1.contains(",") && arg1.endsWith(".png");
       }
     });
-    
+
     return files;
   }
-  
+
   private Tile getClosestTile(double x, double y) {
     Tile closestTile = tileList.get(0);
     double closestDistance = Math.sqrt(Math.pow(x - closestTile.getX(), 2) + Math.pow(y - closestTile.getY(), 2));
@@ -527,7 +511,7 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
   
   @Override
   public Wizard getConfigurationWizard() {
-    return new TableScannerCameraConfigurationWizard(this);
+    return new FireRESTCameraWizard(this);
   }
   
   public class Tile {
@@ -548,9 +532,8 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
           // If the file doesn't exist, see if we can downlaod it
           // from the Intertron.
           try {
-            URL imageUrl = new URL(sourceUrl, file.getName());
-            logger.debug("Attempting to download {}", imageUrl.toString());
-            FileUtils.copyURLToFile(imageUrl, file);
+            logger.debug("Attempting to download {}", sourceUrl.toString());
+            FileUtils.copyURLToFile(sourceUrl, file);
           }
           catch (Exception e) {
             e.printStackTrace();
