@@ -1,5 +1,6 @@
 /*
    Copyright (C) 2011 Jason von Nieda <jason@vonnieda.org>
+   Copyright (C) 2014 Karl Lew <karl@firepick.org>
    
    This file is part of OpenPnP.
    
@@ -18,31 +19,6 @@
    
    For more information about OpenPnP visit http://openpnp.org
 */
-
-/*
-The MIT License (MIT)
-
-Copyright (c) 2014 Karl Lew https://github.com/firepick1/FireREST
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-*/
-
 
 package org.firepick;
 
@@ -82,12 +58,8 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * An implementation of Camera that renders a viewport into a large map
- * of tiles. Tiles are PNG files stored with filenames that denote
- * their position in real space. Ex: 23.456,45.641.png.
- * 
- * TODO: Allow specifying height which will create a larger tile and then
- * scale it down.
+ * A FireREST Camera. 
+ * http://github.com/firepick1/FireREST
  */
 public class FireRESTCamera extends ReferenceCamera implements Runnable {
   private final static Logger logger = LoggerFactory.getLogger(FireRESTCamera.class);
@@ -97,53 +69,19 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
   @Element
   private String sourceUri;
   
+
   @Attribute(required=false)
-  private int fps = 24;
+  private int fps = 2;
   
-  private int tilesWide = 3;
-  private int tilesHigh = 3;
-  
-  /**
-   * The last X and Y position that we rendered for. Used to optimize the
-   * renderer and not generate duplicate frames.
-   */
-  private double lastX = Double.MIN_VALUE, lastY = Double.MIN_VALUE;
-  
-  /**
-   * Two dimensional array representing the layout of the entire set of
-   * tiles.
-   */
-  private Tile[][] tiles;
-  
-  /**
-   * List of all of the tiles. Used when searching for closest matches.
-   */
-  private List<Tile> tileList;
-  
-  /**
-   * Buffered used to render the tiles local to the center point. This buffer
-   * is tilesWide * imageWidth by tilesHigh * imageHeight in pixels. By
-   * buffering this data we are often able to render multiple frames during
-   * small movements.
-   */
-  private BufferedImage buffer;
-  
-  /**
-   * The last tile that was used to compute the local tile array. Used to
-   * avoid re-rendering when the head has moved less than a tile since the
-   * last update.
-   */
-  private Tile lastCenterTile;
-  
-  private int width, height;
-  
-  private Thread thread;
   private URL sourceUrl;
+  private CachedImage cachedImage;
+  private BufferedImage buffer;
+  private Thread thread;
   private File cacheDirectory;
   
   public FireRESTCamera() {
-      unitsPerPixel = new Location(LengthUnit.Inches, 0.031, 0.031, 0, 0);
-      sourceUri = "http://openpnp.org/downloads/tablescan/1/";
+    unitsPerPixel = new Location(LengthUnit.Inches, 0.031, 0.031, 0, 0); 
+    sourceUri = "http://firepick1.github.io/firerest/cv/1/camera.jpg";
   }
   
   @SuppressWarnings("unused")
@@ -213,14 +151,9 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
     pcs.firePropertyChange("cacheSizeDescription", null, getCacheSizeDescription());
   }
 
-  @Override
-  public BufferedImage capture() {
-    return renderFrame();
-  }
-  
   public void run() {
     while (!Thread.interrupted()) {
-      BufferedImage frame = renderFrame();
+      BufferedImage frame = capture();
       broadcastCapture(frame);
       try {
         Thread.sleep(1000 / fps);
@@ -231,15 +164,8 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
     }
   }
   
-  /**
-   * Renders a single frame for the camera based on the camera's position
-   * over the entire array. First renders a tilesWide * tilesHigh hidden
-   * buffer and then copies a templateImage.width * templateImage.height
-   * chunk from that buffer based on the position of the camera within
-   * the buffer.
-   * @return
-   */
-  private BufferedImage renderFrame() {
+  @Override
+  public BufferedImage capture() {
     if (buffer == null) {
       return null;
     }
@@ -249,80 +175,16 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
       return null;
     }
     synchronized (buffer) {
-      // Grab these values only once since the head may continue to move
-      // while we are rendering.
-      Location l = getLocation().convertToUnits(LengthUnit.Millimeters);
-      double headX = l.getX();
-      double headY = l.getY();
+      Location headXY = getLocation().convertToUnits(LengthUnit.Millimeters);
       
-      /*
-       * If the head position has not changed we don't need to re-render.
-       * TODO: Doesn't that mean we can skip everything below
-       * this block aside from on the first render, too?
-       */
-      if (lastX != headX || lastY != headY) {
-          
-        // Find the closest tile to the head's current position.
-        Tile closestTile = getClosestTile(headX, headY);
-        logger.debug("closestTile {}", closestTile);
-        
-        // If it has changed we need to render the entire buffer.
-        if (closestTile != lastCenterTile) {
-          lastCenterTile = closestTile;
-          renderBuffer();
-        }
-        
-        // And remember the last position we rendered.
-        lastX = headX;
-        lastY = headY;
-      }
+      renderBuffer();
       
+      int width = cachedImage.getWidth();
+      int height = cachedImage.getHeight();
+      BufferedImage frame = new BufferedImage( width, height, BufferedImage.TYPE_INT_ARGB);
       
-      /*
-       * Get the distance from the center tile to the point we need to render.
-       * TODO: Had to invert these from experimentation. Need to figure out
-       * why and maybe make it configurable. I was too tired to figure it out.
-       */
-      double unitsDeltaX = headX - lastCenterTile.getX();
-      double unitsDeltaY = lastCenterTile.getY() - headY;
-      
-      /*
-       * Get the distance in pixels from the center tile to the head.
-       */
-            Location unitsPerPixel = getUnitsPerPixel().convertToUnits(LengthUnit.Millimeters);
-      double deltaX = unitsDeltaX / unitsPerPixel.getX();
-      double deltaY = unitsDeltaY / unitsPerPixel.getY();
-      
-      /*
-       * Get the position within the buffer of the top left pixel of the
-       * frame sized chunk we'll grab.
-       */
-      double bufferStartX = (buffer.getWidth() / 2) - (width / 2);
-      double bufferStartY = (buffer.getHeight() / 2) - (height / 2);
-      
-      BufferedImage frame = new BufferedImage(
-          width, 
-          height, 
-          BufferedImage.TYPE_INT_ARGB);
-      
-      /*
-       * Render the frame sized chunk from the center of the buffer offset
-       * by the distance of the head from the center tile to the frame
-       * buffer for final output.
-       */
       Graphics2D g = (Graphics2D) frame.getGraphics();
-      g.drawImage(
-          buffer, 
-          0, 
-          0, 
-          frame.getWidth(), 
-          frame.getHeight(), 
-          (int) (bufferStartX + deltaX), 
-          (int) (bufferStartY + deltaY),
-          (int) (bufferStartX + frame.getWidth() + deltaX), 
-          (int) (bufferStartY + frame.getHeight() + deltaY),
-          null
-          );
+      g.drawImage( buffer, 0, 0, width, height, 0, 0, width, height, null);
       g.dispose();
       
       return frame;
@@ -330,60 +192,16 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
   }
   
   private void renderBuffer() {
-    // determine where in the map the center tile is
-    int centerTileX = lastCenterTile.getTileX();
-    int centerTileY = lastCenterTile.getTileY();
-
     Graphics2D g = (Graphics2D) buffer.getGraphics();
     g.setColor(Color.black);
     g.clearRect(0, 0, buffer.getWidth(), buffer.getHeight());
     g.setColor(Color.white);
 
-    /*
-     * Render the tiles into the buffer. Our goal is to render an area that
-     * is tilesWide x tilesHigh with the center tile in the middle. Any
-     * locations that fall outside of the tiles array are not rendered and
-     * as such are left black.
-     */
-    for (int x = 0; x < tilesWide; x++) {
-      for (int y = 0; y < tilesHigh; y++) {
-        /*
-         * We multiply everything by two here because the TableScanner
-         * takes two images per width of the camera. By doing this
-         * we increase the effective resolution of this image because
-         * decrease the distance between tiles.
-         * TODO: This should be made configurable.
-         */
-        int tileX = centerTileX - (2 * (tilesWide / 2)) + (2 * x);
-        int tileY = centerTileY - (2 * (tilesHigh / 2)) + (2 * y);
-        // If the position is within the array's bounds we'll render it.
-        if (tileX >= 0 && tileX < tiles.length && tileY >= 0 && tileY < tiles[tileX].length && tiles[tileX][tileY] != null) {
-          Tile tile = tiles[tileX][tileY];
-          BufferedImage image = tile.getImage();
-          
-          /*
-           * The source images are flipped in both dimensions, and
-           * we're rendering the local array from top to bottom
-           * instead of bottom to top, so we have to flip the images
-           * and then render right to left, bottom to top.
-           */
-          int dx1 = image.getWidth() * x;
-          int dy1 = image.getHeight() * (tilesHigh - y) - image.getHeight();
-          int dx2 = image.getWidth() * x + image.getWidth();
-          int dy2 = image.getHeight() * (tilesHigh - y);
-          
-          int sx1 = image.getWidth();
-          int sy1 = image.getHeight();
-          int sx2 = 0;
-          int sy2 = 0;
+    BufferedImage image = cachedImage.getImage();
 
-          g.drawImage (image,
-              dx1, dy1, dx2, dy2,
-                    sx1, sy1, sx2, sy2,
-                    null);
-        }
-      }
-    }
+    int w = image.getWidth();
+    int h = image.getHeight();
+    g.drawImage (image, 0, 0, w, h, w, h, 0, 0, null);
     
     g.dispose();
   }
@@ -395,118 +213,15 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
     if (!cacheDirectory.exists()) {
       cacheDirectory.mkdirs();
     }
-    File[] files = null;
-    // Attempt to get the list of files from the source.
-    try {
-      files = loadSourceFiles();
-    }
-    catch (Exception e) {
-      logger.warn("Unable to load file list from {}", sourceUri);
-      logger.warn("Reason", e);
-    }
 
-    if (files == null) {
-      files = loadCachedFiles();
-    }
-
-    if (files.length == 0) {
-      throw new Exception("No source or cached files found.");
-    }
-    // Load the first image we found and use it's properties as a template
-    // for the rest of the images.
-    BufferedImage templateImage = new Tile(0, 0, files[0]).getImage();
-    
-    width = templateImage.getWidth();
-    height = templateImage.getHeight();
-    
-    tileList = new ArrayList<Tile>();
-    lastX = Double.MIN_VALUE;
-    lastY = Double.MIN_VALUE;
-    lastCenterTile = null;
-    
-    // We build a set of unique X and Y positions that we see so we can
-    // later build a two dimensional array of the riles
-    TreeSet<Double> uniqueX = new TreeSet<Double>();
-    TreeSet<Double> uniqueY = new TreeSet<Double>();
-    // Create a map of the tiles so that we can quickly find them when we
-    // build the array.
-    Map<Tile, Tile> tileMap = new HashMap<Tile, Tile>();
-    // Parse the filenames of the all the files and add their coordinates
-    // to the sets and map.
-    for (File file : files) {
-      double x = 0;
-      double y = 0;
-      Tile tile = new Tile(0, 0, file);
-      uniqueX.add(x);
-      uniqueY.add(y);
-      tileMap.put(tile, tile);
-      tileList.add(tile);
-    }
-    // Create a two dimensional array to store all the of the tiles
-    tiles = new Tile[uniqueX.size()][uniqueY.size()];
-    
-    // Iterate through all the unique X and Y positions that were found
-    // and add each file to the two dimensional array in the position
-    // where it belongs
-    int x = 0, y = 0;
-    for (Double xPos : uniqueX) {
-      y = 0;
-      for (Double yPos : uniqueY) {
-        Tile tile = tileMap.get(new Tile(xPos, yPos, null));
-        tiles[x][y] = tile;
-        tile.setTileX(x);
-        tile.setTileY(y);
-        y++;
-      }
-      x++;
-    }
-    
-    /*
-     * Create a buffer that we will render the center tile and it's
-     * surrounding tiles to. 
-     */
-    buffer = new BufferedImage(
-        templateImage.getWidth() * tilesWide,
-        templateImage.getHeight() * tilesHigh,
-        BufferedImage.TYPE_INT_ARGB);
+    File imageFile = new File(cacheDirectory, "firerest.png");
+    cachedImage = new CachedImage(sourceUrl, imageFile);
+    cachedImage.getImage(); // get an image for WxH
+    buffer = new BufferedImage( cachedImage.getWidth(), cachedImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
     
     if (listeners.size() > 0) {
       start();
     }
-  }
-  
-  private File[] loadSourceFiles() throws Exception {
-    // Load the list of the files from the website
-    ArrayList<File> files = new ArrayList<File>();
-    File file = new File(cacheDirectory, "asdf.png");
-    files.add(file);
-    return files.toArray(new File[] {});
-  }
-
-  private File[] loadCachedFiles() throws Exception {
-    // Load all png files from the directory that look like they match what
-    // we are expecting.
-    File[] files = cacheDirectory.listFiles(new FilenameFilter() {
-      @Override
-      public boolean accept(File arg0, String arg1) {
-        return arg1.contains(".") && arg1.contains(",") && arg1.endsWith(".png");
-      }
-    });
-
-    return files;
-  }
-
-  private Tile getClosestTile(double x, double y) {
-    Tile closestTile = tileList.get(0);
-    double closestDistance = Math.sqrt(Math.pow(x - closestTile.getX(), 2) + Math.pow(y - closestTile.getY(), 2));
-    for (Tile tile : tileList) {
-      double distance = Math.sqrt(Math.pow(x - tile.getX(), 2) + Math.pow(y - tile.getY(), 2));
-      if (distance <= closestDistance) {
-        closestTile = tile;
-        closestDistance = distance;
-      }
-    }
-    return closestTile;
   }
   
   @Override
@@ -514,95 +229,52 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
     return new FireRESTCameraWizard(this);
   }
   
-  public class Tile {
+  public static class CachedImage {
     private File file;
-    private double x, y;
-    private int tileX, tileY;
     private SoftReference<BufferedImage> image;
+    private URL imageURL;
+    private width;
+    private height;
     
-    public Tile(double x, double y, File file) {
-      this.x = x;
-      this.y = y;
+    public CachedImage(URL imageURL, File file) {
+      if (file == null) {
+        throw new RuntimeException("CachedImage file cannot be null");
+      }
       this.file = file;
+      if (imageURL == null) {
+        throw new RuntimeException("FireRESTCamera <source-uri> must be specified");
+      }
+      this.imageURL = imageURL;
     }
     
     public synchronized BufferedImage getImage() {
-      if (image == null || image.get() == null) {
-        if (!file.exists() && sourceUrl != null) {
-          // If the file doesn't exist, see if we can downlaod it
-          // from the Intertron.
-          try {
-            logger.debug("Attempting to download {}", sourceUrl.toString());
-            FileUtils.copyURLToFile(sourceUrl, file);
-          }
-          catch (Exception e) {
-            e.printStackTrace();
-          }
-        }
-        try {
-          image = new SoftReference<BufferedImage>(ImageIO.read(file));
-        }
-        catch (Exception e) {
-          e.printStackTrace();
-        }
+      if (imageURL != null) {
+	try {
+	  FileUtils.copyURLToFile(imageURL, file);
+	}
+	catch (Exception e) {
+	  logger.error("Could not download image: {}", imageURL);
+	  e.printStackTrace();
+	}
       }
-      return image.get();
+      try {
+	image = new SoftReference<BufferedImage>(ImageIO.read(file));
+	BufferedImage result = image.get();
+	width = result.getWidth();
+	height = result.getHeight();
+	return result;
+      }
+      catch (Exception e) {
+	throw new RuntimeException("Could not load cached image: {}", file);
+      }
     }
+
+    public int getWidth() {return width;}
+    public int getHeight() {return height;}
     
-    public double getX() {
-      return x;
-    }
-
-    public void setX(double x) {
-      this.x = x;
-    }
-
-    public double getY() {
-      return y;
-    }
-
-    public void setY(double y) {
-      this.y = y;
-    }
-
-    public File getFile() {
-      return file;
-    }
-    
-    public void setFile(File file) {
-      this.file = file;
-    }
-
-    public int getTileX() {
-      return tileX;
-    }
-
-    public void setTileX(int tileX) {
-      this.tileX = tileX;
-    }
-
-    public int getTileY() {
-      return tileY;
-    }
-
-    public void setTileY(int tileY) {
-      this.tileY = tileY;
-    }
-    
-    @Override
     public String toString() {
-      return String.format("[%2.3f, %2.3f (%d, %d)]", x, y, tileX, tileY);
+      return imageURL.toString();
     }
 
-    @Override
-    public boolean equals(Object obj) {
-      Tile other = (Tile) obj;
-      return other.x == x && other.y == y;
-    }
-
-    @Override
-    public int hashCode() {
-      return ("" + x + "," + y).hashCode();
-    }
   }
 }
