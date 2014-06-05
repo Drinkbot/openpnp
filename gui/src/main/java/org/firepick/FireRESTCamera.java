@@ -233,8 +233,8 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
     private File file;
     private SoftReference<BufferedImage> image;
     private URL imageURL;
-    private width;
-    private height;
+    private int width;
+    private int height;
     
     public CachedImage(URL imageURL, File file) {
       if (file == null) {
@@ -254,7 +254,7 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
 	}
 	catch (Exception e) {
 	  logger.error("Could not download image: {}", imageURL);
-	  e.printStackTrace();
+	  throw new RuntimeException(imageURL.toString(), e);
 	}
       }
       try {
@@ -265,7 +265,7 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
 	return result;
       }
       catch (Exception e) {
-	throw new RuntimeException("Could not load cached image: {}", file);
+	throw new RuntimeException("Could not load cached image: " + file);
       }
     }
 
