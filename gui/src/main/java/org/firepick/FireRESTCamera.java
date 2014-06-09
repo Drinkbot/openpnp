@@ -201,7 +201,7 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
 
     int w = image.getWidth();
     int h = image.getHeight();
-    g.drawImage (image, 0, 0, w, h, w, h, 0, 0, null);
+    g.drawImage (image, 0, 0, w, h, 0, 0, w, h, null);
     
     g.dispose();
   }
