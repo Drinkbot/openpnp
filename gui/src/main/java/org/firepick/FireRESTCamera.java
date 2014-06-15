@@ -55,6 +55,7 @@ import org.simpleframework.xml.Element;
 import org.simpleframework.xml.core.Commit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.firepick.*;
 
 
 /**
@@ -69,19 +70,19 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
   @Element
   private String sourceUri;
   
-
   @Attribute(required=false)
   private int fps = 2;
   
   private URL sourceUrl;
-  private CachedImage cachedImage;
-  private BufferedImage buffer;
+  private FireREST firerest = new FireREST;
+  //private CachedImage cachedImage;
+  //private BufferedImage buffer;
   private Thread thread;
-  private File cacheDirectory;
+  //private File cacheDirectory;
   
   public FireRESTCamera() {
     unitsPerPixel = new Location(LengthUnit.Inches, 0.031, 0.031, 0, 0); 
-    sourceUri = "http://firepick1.github.io/firerest/cv/1/camera.jpg";
+    //sourceUri = "http://firepick1.github.io/firerest/cv/1/camera.jpg";
   }
   
   @SuppressWarnings("unused")
@@ -138,16 +139,17 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
   }
   
   public String getCacheSizeDescription() {
-    try {
-      return FileUtils.byteCountToDisplaySize(FileUtils.sizeOf(cacheDirectory));
-    }
-    catch (Exception e) {
-      return "Not Initialized";
-    }
+    return "FireRESTCamera does not use a cache";
+    //try {
+      //return FileUtils.byteCountToDisplaySize(FileUtils.sizeOf(cacheDirectory));
+    //}
+    //catch (Exception e) {
+      //return "Not Initialized";
+    //}
   }
   
   public synchronized void clearCache() throws IOException {
-    FileUtils.cleanDirectory(cacheDirectory);
+    //FileUtils.cleanDirectory(cacheDirectory);
     pcs.firePropertyChange("cacheSizeDescription", null, getCacheSizeDescription());
   }
 
@@ -166,58 +168,59 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
   
   @Override
   public BufferedImage capture() {
-    if (buffer == null) {
-      return null;
-    }
-    if (head == null) {
-        // TODO: Render an error image saying that it must be attached
-        // to a head.
-      return null;
-    }
-    synchronized (buffer) {
-      Location headXY = getLocation().convertToUnits(LengthUnit.Millimeters);
-      
-      renderBuffer();
-      
-      int width = cachedImage.getWidth();
-      int height = cachedImage.getHeight();
-      BufferedImage frame = new BufferedImage( width, height, BufferedImage.TYPE_INT_ARGB);
-      
-      Graphics2D g = (Graphics2D) frame.getGraphics();
-      g.drawImage( buffer, 0, 0, width, height, 0, 0, width, height, null);
-      g.dispose();
-      
-      return frame;
-    }
+    return firerest.getImage(sourceUrl);
+    //if (buffer == null) {
+      //return null;
+    //}
+    //if (head == null) {
+        //// TODO: Render an error image saying that it must be attached
+        //// to a head.
+      //return null;
+    //}
+    //synchronized (buffer) {
+      //Location headXY = getLocation().convertToUnits(LengthUnit.Millimeters);
+      //
+      //renderBuffer();
+      //
+      //int width = cachedImage.getWidth();
+      //int height = cachedImage.getHeight();
+      //BufferedImage frame = new BufferedImage( width, height, BufferedImage.TYPE_INT_ARGB);
+      //
+      //Graphics2D g = (Graphics2D) frame.getGraphics();
+      //g.drawImage( buffer, 0, 0, width, height, 0, 0, width, height, null);
+      //g.dispose();
+      //
+      //return frame;
+    //}
   }
   
-  private void renderBuffer() {
-    Graphics2D g = (Graphics2D) buffer.getGraphics();
-    g.setColor(Color.black);
-    g.clearRect(0, 0, buffer.getWidth(), buffer.getHeight());
-    g.setColor(Color.white);
-
-    BufferedImage image = cachedImage.getImage();
-
-    int w = image.getWidth();
-    int h = image.getHeight();
-    g.drawImage (image, 0, 0, w, h, 0, 0, w, h, null);
-    
-    g.dispose();
-  }
+  //private void renderBuffer() {
+    //Graphics2D g = (Graphics2D) buffer.getGraphics();
+    //g.setColor(Color.black);
+    //g.clearRect(0, 0, buffer.getWidth(), buffer.getHeight());
+    //g.setColor(Color.white);
+//
+    //BufferedImage image = cachedImage.getImage();
+//
+    //int w = image.getWidth();
+    //int h = image.getHeight();
+    //g.drawImage (image, 0, 0, w, h, 0, 0, w, h, null);
+    //
+    //g.dispose();
+  //}
   
   private synchronized void initialize() throws Exception {
     stop();
     sourceUrl = new URL(sourceUri);
-    cacheDirectory = new File(Configuration.get().getResourceDirectory(getClass()), DigestUtils.shaHex(sourceUri));
-    if (!cacheDirectory.exists()) {
-      cacheDirectory.mkdirs();
-    }
+    //cacheDirectory = new File(Configuration.get().getResourceDirectory(getClass()), DigestUtils.shaHex(sourceUri));
+    //if (!cacheDirectory.exists()) {
+      //cacheDirectory.mkdirs();
+    //}
 
-    File imageFile = new File(cacheDirectory, "firerest.png");
-    cachedImage = new CachedImage(sourceUrl, imageFile);
-    cachedImage.getImage(); // get an image for WxH
-    buffer = new BufferedImage( cachedImage.getWidth(), cachedImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
+    //File imageFile = new File(cacheDirectory, "firerest.png");
+    //cachedImage = new CachedImage(sourceUrl, imageFile);
+    //cachedImage.getImage(); // get an image for WxH
+    //buffer = new BufferedImage( cachedImage.getWidth(), cachedImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
     
     if (listeners.size() > 0) {
       start();
@@ -229,52 +232,52 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
     return new FireRESTCameraWizard(this);
   }
   
-  public static class CachedImage {
-    private File file;
-    private SoftReference<BufferedImage> image;
-    private URL imageURL;
-    private int width;
-    private int height;
-    
-    public CachedImage(URL imageURL, File file) {
-      if (file == null) {
-        throw new RuntimeException("CachedImage file cannot be null");
-      }
-      this.file = file;
-      if (imageURL == null) {
-        throw new RuntimeException("FireRESTCamera <source-uri> must be specified");
-      }
-      this.imageURL = imageURL;
-    }
-    
-    public synchronized BufferedImage getImage() {
-      if (imageURL != null) {
-	try {
-	  FileUtils.copyURLToFile(imageURL, file);
-	}
-	catch (Exception e) {
-	  logger.error("Could not download image: {}", imageURL);
-	  throw new RuntimeException(imageURL.toString(), e);
-	}
-      }
-      try {
-	image = new SoftReference<BufferedImage>(ImageIO.read(file));
-	BufferedImage result = image.get();
-	width = result.getWidth();
-	height = result.getHeight();
-	return result;
-      }
-      catch (Exception e) {
-	throw new RuntimeException("Could not load cached image: " + file);
-      }
-    }
-
-    public int getWidth() {return width;}
-    public int getHeight() {return height;}
-    
-    public String toString() {
-      return imageURL.toString();
-    }
-
-  }
+  //public static class CachedImage {
+    //private File file;
+    //private SoftReference<BufferedImage> image;
+    //private URL imageURL;
+    //private int width;
+    //private int height;
+    //
+    //public CachedImage(URL imageURL, File file) {
+      //if (file == null) {
+        //throw new RuntimeException("CachedImage file cannot be null");
+      //}
+      //this.file = file;
+      //if (imageURL == null) {
+        //throw new RuntimeException("FireRESTCamera <source-uri> must be specified");
+      //}
+      //this.imageURL = imageURL;
+    //}
+    //
+    //public synchronized BufferedImage getImage() {
+      //if (imageURL != null) {
+	//try {
+	  //FileUtils.copyURLToFile(imageURL, file);
+	//}
+	//catch (Exception e) {
+	  //logger.error("Could not download image: {}", imageURL);
+	  //throw new RuntimeException(imageURL.toString(), e);
+	//}
+      //}
+      //try {
+	//image = new SoftReference<BufferedImage>(ImageIO.read(file));
+	//BufferedImage result = image.get();
+	//width = result.getWidth();
+	//height = result.getHeight();
+	//return result;
+      //}
+      //catch (Exception e) {
+	//throw new RuntimeException("Could not load cached image: " + file);
+      //}
+    //}
+//
+    //public int getWidth() {return width;}
+    //public int getHeight() {return height;}
+    //
+    //public String toString() {
+      //return imageURL.toString();
+    //}
+//
+  //}
 }
