@@ -158,9 +158,12 @@ public class FireRESTCamera extends ReferenceCamera implements Runnable {
       BufferedImage frame = capture();
       broadcastCapture(frame);
       try {
+        System.out.print(".");
+        System.out.flush();
         Thread.sleep(1000 / fps);
       }
-      catch (InterruptedException e) {
+      catch (Throwable e) {
+        logger.warn("FireRESTCamera thread END: {}", e.getMessage());
         return;
       }
     }
